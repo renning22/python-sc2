@@ -186,6 +186,8 @@ class SC2Process:
         # if logger.getEffectiveLevel() <= logging.DEBUG:
         args.append("-verbose")
 
+        logger.info(f"Command args: {args}")
+
         return subprocess.Popen(
             args,
             cwd=(str(Paths.CWD) if Paths.CWD else None),

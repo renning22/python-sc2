@@ -25,6 +25,10 @@ def main():
     sc2.run_game(
         sc2.maps.get("CollectMineralShards"),
         [Bot(Race.Terran, CollectMineral())],
+        rgb_render_config={
+            'window_size': (800, 600),
+            'minimap_size': (200, 200),
+        },
         realtime=True,
     )
 

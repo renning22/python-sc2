@@ -71,7 +71,11 @@ def main():
     sc2.run_game(
         sc2.maps.get("(2)CatalystLE"),
         [Bot(Race.Protoss, CannonRushBot(), name="CheeseCannon"), Computer(Race.Protoss, Difficulty.Medium)],
-        realtime=False,
+        rgb_render_config={
+            'window_size': (800, 600),
+            'minimap_size': (200, 200),
+        },
+        realtime=True,
     )
 
 

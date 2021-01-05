@@ -13,8 +13,6 @@ from sc2.ids.ability_id import AbilityId
 
 from typing import List, Dict, Set, Tuple, Any, Optional, Union  # mypy type checking
 
-import ning
-
 """
 To play an arcade map, you need to download the map first.
 
@@ -40,36 +38,58 @@ Improvements that could be made:
 
 class MarineSplitChallenge(sc2.BotAI):
     async def on_step(self, iteration):
-        units = self.units(UnitTypeId.MARINE)
         # do marine micro vs zerglings
-        for unit in units:
-            ning.split(unit, units)
-            enemies_in_range = self.enemy_units.filter(lambda u: unit.target_in_range(u))
-            if enemies_in_range:
+        for unit in self.units(UnitTypeId.MARINE):
+
+            if self.enemy_units:
+
                 # attack (or move towards) zerglings / banelings
                 if unit.weapon_cooldown <= self._client.game_step / 2:
+                    enemies_in_range = self.enemy_units.filter(lambda u: unit.target_in_range(u))
+
                     # attack lowest hp enemy if any enemy is in range
-                    # Use stimpack
-                    if (
-                        self.already_pending_upgrade(UpgradeId.STIMPACK) == 1
-                        and not unit.has_buff(BuffId.STIMPACK)
-                        and unit.health > 10
-                    ):
-                        ning.use_stimpack(unit, enemies_in_range)
+                    if enemies_in_range:
+                        # Use stimpack
+                        if (
+                            self.already_pending_upgrade(UpgradeId.STIMPACK) == 1
+                            and not unit.has_buff(BuffId.STIMPACK)
+                            and unit.health > 10
+                        ):
+                            unit(AbilityId.EFFECT_STIM)
 
-                    # attack baneling first
-                    filtered_enemies_in_range = enemies_in_range.of_type(UnitTypeId.BANELING)
+                        # attack baneling first
+                        filtered_enemies_in_range = enemies_in_range.of_type(UnitTypeId.BANELING)
 
-                    if not filtered_enemies_in_range:
-                        filtered_enemies_in_range = enemies_in_range.of_type(UnitTypeId.ZERGLING)
-                    # attack lowest hp unit
-                    lowest_hp_enemy_in_range = min(filtered_enemies_in_range, key=lambda u: u.health)
-                    if ning.attach_low_hp_in_range(unit, lowest_hp_enemy_in_range):
-                        continue
+                        if not filtered_enemies_in_range:
+                            filtered_enemies_in_range = enemies_in_range.of_type(UnitTypeId.ZERGLING)
+                        # attack lowest hp unit
+                        lowest_hp_enemy_in_range = min(filtered_enemies_in_range, key=lambda u: u.health)
+                        unit.attack(lowest_hp_enemy_in_range)
+
+                    # no enemy is in attack-range, so give attack command to closest instead
+                    else:
+                        closest_enemy = self.enemy_units.closest_to(unit)
+                        unit.attack(closest_enemy)
+
+                # move away from zergling / banelings
                 else:
-                    # move away from zergling / banelings
-                    if ning.move_away_from_enemies(unit, enemies_in_range):
-                        continue
+                    stutter_step_positions = self.position_around_unit(unit, distance=4)
+
+                    # filter in pathing grid
+                    stutter_step_positions = {p for p in stutter_step_positions if self.in_pathing_grid(p)}
+
+                    # find position furthest away from enemies and closest to unit
+                    enemies_in_range = self.enemy_units.filter(lambda u: unit.target_in_range(u, -0.5))
+
+                    if stutter_step_positions and enemies_in_range:
+                        retreat_position = max(
+                            stutter_step_positions,
+                            key=lambda x: x.distance_to(enemies_in_range.center) - x.distance_to(unit),
+                        )
+                        unit.move(retreat_position)
+
+                    else:
+                        print("No retreat positions detected for unit {} at {}.".format(unit, unit.position.rounded))
 
     async def on_start(self):
         await self.chat_send("Edit this message for automatic chat commands.")
@@ -103,11 +123,7 @@ def main():
     sc2.run_game(
         sc2.maps.get("Marine Split Challenge"),
         [Bot(Race.Terran, MarineSplitChallenge())],
-        realtime=True,
-        rgb_render_config={
-            'window_size': (800, 600),
-            'minimap_size': (200, 200),
-        },
+        realtime=False,
         save_replay_as="Example.SC2Replay",
     )
 
